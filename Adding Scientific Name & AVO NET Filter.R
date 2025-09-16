@@ -48,7 +48,7 @@ library(here)
                 select(common_name, scientific_name),
               by = c("species" = "common_name"))
   
-}#Step-3 & 4: Comparing pecies_df and fc species name to filter out extra rows of species names  and adding a new column as scientific name into fc by comparing species name/common name and assinging them scientific name
+}#Step-3 & 4: Comparing species_df and fc species name to filter out extra rows of species names  and adding a new column as scientific name into fc by comparing species name/common name and assinging them scientific name
 
 {
   fc_missing_sn <- fc %>%
@@ -170,6 +170,8 @@ library(here)
   avo_with_species <- avo_with_species %>%
       filter(!is.na(species))
   
+  write.csv(avo_with_species, here::here("..", "..", "data_files", "avo_with_species.csv"), row.names = FALSE)
+  
   # The 'avo_with_species' dataframe now has the new column.
   
 }#Step-10: added common name into avo datasheet
@@ -186,14 +188,16 @@ library(here)
   # View missing common names
   print(missing_in_fc)
   
-}#Step-11: Checking which species is not there in avo file after adding the namesa nd filtering it out
+}#Step-11: Checking which species is not there in avo file after adding the names and filtering it out
 
 {
+  library(dplyr)
+  
   # Step 1: Get frequency tables
   avo_counts <- table(avo_with_species$species)
-  fc_counts <- table(fc$species)
+  fc_counts  <- table(fc$species)
   
-  # Step 2: Combine into a data frame
+  # Step 2: Combine into a single data frame (keep all species from both)
   combined <- full_join(
     as.data.frame(avo_counts),
     as.data.frame(fc_counts),
@@ -201,26 +205,49 @@ library(here)
     suffix = c("_avo", "_fc")
   )
   
-  # Step 3: Rename for clarity
+  # Step 3: Rename columns
   names(combined)[1] <- "species"
+  names(combined)[2] <- "occurrence_avo"
+  names(combined)[3] <- "occurrence_fc"
   
-  # Step 4: Find mismatches
-  mismatch <- combined %>%
-    filter(Freq_avo != Freq_fc | is.na(Freq_fc) | is.na(Freq_avo))
+  # Step 4: Add a mismatch flag (TRUE if counts differ or one is missing)
+  combined <- combined %>%
+    mutate(
+      mismatch_flag = occurrence_avo != occurrence_fc |
+        is.na(occurrence_fc) |
+        is.na(occurrence_avo)
+    )
   
-  # Step 5: Join with original `avo_with_species` to bring in extra columns
-  mismatch_full <- mismatch %>%
+  # Step 5: Join with fc to bring in scientific_name
+  # and join with avo_with_species for other columns
+  combined_full <- combined %>%
     left_join(
-      avo_with_species %>%
-        select(species, Species1_BirdLife, Species2_eBird, eBird.species.group, Species3_BirdTree),
+      fc %>% select(species, scientific_name),
       by = "species"
     ) %>%
-    distinct()  # Optional: remove duplicates
+    left_join(
+      avo_with_species %>% 
+        select(species, Species1_BirdLife, Species2_eBird,
+               eBird.species.group, Species3_BirdTree),
+      by = "species"
+    ) %>%
+    distinct() %>%
+    relocate(scientific_name, .before = species)  # move scientific_name to start
   
-  # Step 6: Print result
-  print(mismatch_full)
+  # Step 6: Save mismatches separately (optional)
+  mismatch_full <- combined_full %>%
+    filter(mismatch_flag)
   
-  write.csv(mismatch_full, here::here("..", "..", "data_files", "avo_fc_scientific_names.csv"), row.names = FALSE)
+  # Step 7: Print both
+  print(combined_full)   # all species
+  print(mismatch_full)   # only mismatches
+  
+  # Step 8: Save files (optional)
+  # write.csv(combined_full, "all_species_occurrences.csv", row.names = FALSE)
+  # write.csv(mismatch_full, "mismatch_species_occurrences.csv", row.names = FALSE)
+  
+
+  write.csv(combined_full, here::here("..", "..", "data_files", "avo_fc_scientific_names.csv"), row.names = FALSE)
   
   #OR
   #searching only[ species from fc were never matched or used in your avo]
@@ -228,3 +255,20 @@ library(here)
   # setdiff(fc$species, avo$species)
   
 }#Step-12:Checking Which species is repeated and how much repeated in frequency
+
+
+
+# 
+# full_list <- tibble(species = union(unique(fc$species), unique(mismatch_full$species))) %>%
+#   mutate(in_fc = species %in% unique(fc$species),
+#          in_mismatch = species %in% unique(mismatch_full$species))
+# 
+# full_list %>% filter(!in_fc | !in_mismatch)
+# 
+# 
+# 
+#  all rows from avo_with_species where the species column is "AshyDrongo"
+# View(
+#   +     avo_with_species %>% 
+#     +         filter(species == "AshyDrongo")
+#   + )
