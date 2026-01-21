@@ -18,6 +18,9 @@ library(here)
            common_name = str_replace_all(common_name, " ", ""))     # remove all spaces (PascalCase)
   #reading AVO-NET data here 
   avo<-read.csv(here("..", "..","..", "TorporPhylogeny", "ELE", "ELEData", "TraitData", "AVONET_Raw_Data.csv"))
+  #supplementary data file from which i will take out the mass values for species 
+  supply<-morpho.mean<-read.csv(here("..","..","data_files","Supplementary_dataset.Trait_data.csv"))
+
 }#Step-1:loading all required  files and also changing the common name to pascal case so it can be easy to compare between files
 
 {
@@ -123,7 +126,7 @@ library(here)
   
 }#Step-8:comparing flock composition and e-bird_taxa to see which scientific name is different 
 
-#{
+{
   avo <- avo %>%
     filter(!is.na(common_name))
   
@@ -191,7 +194,6 @@ library(here)
 }#Step-11: Checking which species is not there in avo file after adding the names and filtering it out
 
 {
-  library(dplyr)
   
   # Step 1: Get frequency tables
   avo_counts <- table(avo_with_species$species)
@@ -256,6 +258,34 @@ library(here)
   
 }#Step-12:Checking Which species is repeated and how much repeated in frequency
 
+ #### Subsetting avo net suplementary data for PCA #######
+  morpho.d<-read.csv(here("..","..","data_files", "avo_clean.csv"))
+  supply<-read.csv(here("..","..","data_files","Supplementary_dataset.Trait_data.csv"))
+  
+  species_cols <- c("Species1_BirdLife", "Species2_eBird", "eBird.species.group", "Species3_BirdTree")
+  
+  # Pivot morpho.d longer so all four columns are in one column for matching
+  morpho_long <- morpho.d %>%
+    pivot_longer(cols = all_of(species_cols), names_to = "source", values_to = "Species3") %>%
+    select(Species3, species) %>%
+    distinct()
+  
+  # Join supply with this longer version
+  supply <- supply %>%
+    left_join(morpho_long, by = "Species3")
+  #removing extra variables 
+  supply <- supply %>%
+    filter(!is.na(species))
+  
+  #brought the species list at first 
+  supply <- supply %>%
+    select(species, everything())
+  
+  #removed the subspecies 
+  supply <- supply %>%
+    filter(!grepl("Zosterops salvadorii", Species3, ignore.case = TRUE))
+  
+  write.csv(supply, here::here("..", "..", "data_files", "Supplementary_cleaned.csv"), row.names = FALSE)
 
 
 # 
@@ -272,3 +302,70 @@ library(here)
 #   +     avo_with_species %>% 
 #     +         filter(species == "AshyDrongo")
 #   + )
+
+
+avos<-read.csv(here("..","..","data_files","avo_with_species.csv"))
+
+{ #remove NA rows from Avos 
+  key_traits <- c(
+    "Beak.Length_Culmen", "Beak.Length_Nares", "Beak.Width", "Beak.Depth",
+    "Tarsus.Length", "Wing.Length", "Kipps.Distance", "Secondary1",
+    "Hand.wing.Index", "Tail.Length")
+  
+  avos_clean <- avos %>%
+    filter(!if_all(all_of(key_traits), is.na))
+  
+}# Step 13- Removing species which have all the trait values as NA
+
+{
+  # Define the traits
+  traits <- c("Beak.Length_Culmen", "Beak.Length_Nares", "Beak.Width", "Beak.Depth",
+              "Tarsus.Length", "Wing.Length", "Kipps.Distance", "Secondary1",
+              "Hand.wing.Index", "Tail.Length")
+  
+  # Summarise mean and SD per species for each trait
+  avos_summary<- avos_clean %>%
+    group_by(species) %>%
+    summarise(across(
+      all_of(traits),
+      list(mean = ~mean(.x, na.rm = TRUE),
+           sd   = ~sd(.x, na.rm = TRUE)),
+      .names = "{.col}_{.fn}"
+    ))
+  
+  # View result
+  head(avos_summary)
+}#Step14- Mean of each trait for each species
+
+write.csv(avos_summary, here::here("..", "..", "data_files", "avo_sp_mean.csv"), row.names = FALSE)
+write.csv(avos_clean, here::here("..", "..", "data_files", "avo_clean.csv"), row.names = FALSE)
+
+
+###### Correcting Flock id mistake ##########
+
+#checking which flock id is twice in the dataset
+fcibj %>%
+       group_by(flock_id) %>%
+       summarise(unique_elevations = n_distinct(elevation)) %>%
+       filter(unique_elevations > 1)
+
+# Which elevations does have problem flocks
+dup_flocks <- fcibj %>%
+  group_by(flock_id) %>%
+  summarise(unique_elevations = n_distinct(elevation)) %>%
+  filter(unique_elevations > 1)
+
+fcibj %>%
+  filter(flock_id %in% dup_flocks$flock_id) %>%
+  arrange(flock_id, elevation)
+
+
+#fixing the problems
+fcibj$flock_id[fcibj$flock_id == 416 & fcibj$elevation == 1200] <- 497 # base R 
+
+#To confirm the change worked:
+fcibj %>%
+  filter(flock_id %in% c(416, 497)) %>%
+  arrange(flock_id, elevation)
+
+
