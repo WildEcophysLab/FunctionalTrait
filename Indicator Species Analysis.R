@@ -64,7 +64,7 @@ comm_combined <- comm_df_combined %>%
 
 group_comb <- factor(comm_df_combined$group_comb)
 
-table(group_comb)
+table(group_comb) # gives the total number of flocks per group
 
 
 library(indicspecies)
