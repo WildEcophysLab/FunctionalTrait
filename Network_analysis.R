@@ -372,8 +372,6 @@ hist(obs.degree.800, 10)
 
 ############### saving matrix as csv and i graph object as GraphML file #################
  
-   # Assuming 'species_matrix' is your data frame or matrix object
-  
 write.csv(obs.mat.adj.2800,here::here("..", "..", "data_files","Species co_occurence matrix", "species_species_matrix_2800m.csv"), row.names = TRUE)
 
 write_graph(obs.net.igraph.2800,here::here("..", "..", "data_files", "igraph_object","obs.net.igraph.2800.graphml"), format = "graphml")
