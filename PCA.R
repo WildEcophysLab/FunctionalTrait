@@ -67,6 +67,7 @@ library(tidyr)
 library(reshape2)
 #######Reading files here##############
 fc<-read.csv(here("..","..","data_files", "flock_composition_data_cleaned.csv"))
+
 #morpho.d<-read.csv(here("..","..","data_files", "avo_clean.csv"))
 #morpho.mean<-read.csv(here("..","..","data_files","avo_sp_mean.csv")) # this has trait mean and SD for each trait of species
 suply<-read.csv(here("..","..","data_files","Supplementary_cleaned.csv"))
@@ -84,27 +85,27 @@ suply<-read.csv(here("..","..","data_files","Supplementary_cleaned.csv"))
 
 
 #################### PCA pipeline for all species in Mixed flocking species #################
-Species<- suply$species
-Trait<-suply[,c(10:20,1)]
+Species.supply<- suply$species
+Trait.supply<-suply[,c(2:12,1)]
 
 Trait.PCA<- princomp(Trait[,1:11], cor=FALSE)
-Trait.PCA2<- prcomp(Trait[,1:11], scale. = FALSE)
+Trait.PCA2.supply<- prcomp(Trait.supply[,1:11], scale. = FALSE)
 
 biplot(Trait.PCA2)
 biplot(Trait.PCA)
 
 #For calclating ecludian distance taking out the scores
-Eucd<-Trait.PCA2$x[,1:2]  
-Eucd<-as.data.frame(Eucd)
+Eucd.supply<-Trait.PCA2.supply$x[,1:2]  
+Eucd.supply<-as.data.frame(Eucd.supply)
 
 #adding species name in dataframe
-Eucd$Species<-Trait$species
+Eucd.supply$Species<-Trait.supply$species
 
 
 #calculating ecludian distance and computing Euclidean distance matrix
 dist_matrix <- as.matrix(dist(Eucd[, c("PC1", "PC2")], method = "euclidean"))
 rownames(dist_matrix) <- Eucd$Species
-colnames(dist_matrix) <- Eucd$Species
+colnames(dist_matrix) <- Eucd$Species               
 
 
 #normal PCA Plot
@@ -138,6 +139,9 @@ elevations <- unique(species_by_elev$elev_band)
     suply[suply$species %in% sp_e, ]
   
  }
+
+
+
 
 #################### Trait coloumn ###################
 trait_cols <- c(
