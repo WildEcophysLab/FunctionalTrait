@@ -1,136 +1,46 @@
-############### pearson coefficient coorelation ########
-##########librarries##########
-library(vegan)
+# Load necessary libraries
 library(ecodist)
-#changing trait matrix into long format one
-trait.long<-read.csv(here("..","..","data_files", "Trait similarity matrix", "Euclidean_distance_2400m.csv"))
-scm<-read.csv(here("..","..","data_files", "Species co_occurence matrix", "species_species_matrix_2400m.csv"))
-# Remove the species name column if present
-trait_mat <- as.matrix(trait.long[ , -1])
-rownames(trait_mat) <- trait.long$X
+library(here)
 
-# Log-transform to reduce dominance of very large counts
-#trait_log <- log1p(trait_mat)
-trait_log <- trait_mat
-########### Convert trait to a distance matrix############
-trait_dist <- as.dist(max(trait_log) - trait_log)
+# Reading the Euclidean distance and co-occurrence files
+trait_raw <- read.csv(here("..", "..", "data_files", "Trait similarity matrix", "Euclidean_distance_2800m.csv"))
+scm_raw   <- read.csv(here("..", "..", "data_files", "Species co_occurence matrix", "species_species_matrix_2800m.csv"))
 
-################ sp-co matrices #############
-# Remove the species name column if present
-scm_mat <- as.matrix(scm[ , -1])
-rownames(scm_mat) <- scm$X
+# Convert to matrix and set row names from the first column (X)
+trait_mat <- as.matrix(trait_raw[, -1])
+rownames(trait_mat) <- trait_raw$X
 
-# Log-transform to reduce dominance of very large counts
-scm_log <- scm_mat
-#scm_log <- log1p(scm_mat)
-########### Convert co-occurrence to a distance matrix############
-scm_dist <- as.dist(max(scm_log) - scm_log)
+# Convert trait similarity to a distance object
+trait_dist <- as.dist(max(trait_mat) - trait_mat)
 
-########### reordering matrix #############
-# Species order from co-occurrence distance matrix
-sp_order <- attr(scm_dist, "Labels")
+#Processing Co-occurrence Matrix 
+scm_mat <- as.matrix(scm_raw[, -1])
+rownames(scm_mat) <- scm_raw$X
 
-# Convert trait distance to matrix
-trait_mat <- as.matrix(trait_dist)
+# Convert co-occurrence to a distance object
+scm_dist <- as.dist(max(scm_mat) - scm_mat)
 
-# Reorder rows and columns
-trait_mat <- trait_mat[sp_order, sp_order]
+# The Mantel test requires both matrices to have species in the exact same order
+sp_order <- labels(scm_dist)
 
-# Convert back to dist object
-trait_dist_fixed <- as.dist(trait_mat)
-#######verifying #######
-all(
-  attr(scm_dist, "Labels") ==
-    attr(trait_dist_fixed, "Labels")
-)
+# Reorder the trait matrix to match the co-occurrence order
+trait_mat_ordered <- as.matrix(trait_dist)[sp_order, sp_order]
+trait_dist_final  <- as.dist(trait_mat_ordered)
 
-########## Mantel test #######
-mantel_result <- mantel(
-  xdis = scm_dist,
-  ydis = trait_dist_fixed,
-  method = "pearson",
-  permutations = 9999
-  # The number of times to randomly shuffle the data to calculate the p-value.
-  # Since distance data points aren't independent, we can't use standard p-value math.
-  # shuffle the matrices 9,999 times to see if the observed correlation is random or real.
-)
-mantel_result
-
-#plot
-# Convert the distance matrices into simple lists (vectors) of numbers
-x_vals <- as.vector(as.dist(trait_dist_fixed))
-y_vals <- as.vector(as.dist(scm_dist))
-
-
-########## ecodist ###########
- mantel_result <- mantel(
-       formula = scm_dist ~ trait_dist_fixed,
-       nperm = 9999,
-       mrank = FALSE,  # FALSE = Pearson (Raw values). Change to TRUE for Spearman (Ranks).
-       nboot = 500     # ecodist also calculates Confidence Intervals automatically
-   )
- 
-   mantel_result
-
-
-
-
-
-
-
-
-
-
-
-# Plot
-plot(x = x_vals, 
-     y = y_vals,
-     xlab = "Trait Distance (Dissimilarity)",
-     ylab = "Species Community Distance (Dissimilarity)",
-     main = "Relationship between Traits and Species Composition",
-     pch = 16,      # Solid dots
-     col = "blue",  # Color of dots
-     cex = 0.5)     # Make dots smaller (easier to see patterns)
-
-# Add a trend line (Linear Regression)
-abline(lm(y_vals ~ x_vals), col = "red", lwd = 2)
-
-
-
-# 1. Run the mantel test (storing it in 'simple.results.mantel')
- simple.results.mantel <- mantel(
-       xdis = scm_dist, 
-       ydis = trait_dist_fixed, 
-       method = "pearson", 
-       permutations = 9999
-   )
- 
-   # 2. Create the Histogram
-   # This plots the 9999 random permutations as grey bars
-   hist(simple.results.mantel$perm, 
-               breaks = 50, 
-               main = "Histogram of Random Permutations", 
-               xlab = "Correlation (r)", 
-               col = "lightgrey",
-               xlim = c(-0.4, 0.4)) # Adjusts x-axis to fit your data
- 
-   # 3. Add a Red Line for YOUR Result
-   # This draws a vertical line at -0.2573
-   abline(v = simple.results.mantel$statistic, 
-                   col = "red", 
-                   lwd = 3, 
-                   lty = 2)
- 
-   # 4. Add a text label to point out your result
-   text(x = simple.results.mantel$statistic, 
-               y = 0, 
-               labels = "Your Result\n(-0.257)", 
-               col = "red", 
-               pos = 3, # Position text above the line
-               cex = 0.8)
- #plot
-   # Convert the distance matrices into simple lists (vectors) of numbers
-   x_vals <- as.vector(as.dist(trait_dist_fixed))
- y_vals <- as.vector(as.dist(scm_dist))
- 
-
+# Validation & Analysis ---
+# Verify if the labels now match perfectly
+if(all(labels(scm_dist) == labels(trait_dist_final))) {
+  message("Success: Matrices are aligned. Running Mantel Test...")
+  
+  # Performing the Mantel Test
+  mantel_result <- ecodist::mantel(
+    scm_dist ~ trait_dist_final,
+    nperm = 9999,  # nperm: Number of permutations for p-value calculation
+    mrank = FALSE, 
+    nboot = 500    # nboot: Number of iterations for the 95% confidence interval
+  )
+  
+  print(mantel_result)
+} else {
+  stop("Error: Species labels do not match between matrices.")
+}
