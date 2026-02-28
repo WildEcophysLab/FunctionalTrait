@@ -6,7 +6,7 @@ library(dplyr)
 library(tidyr)
 library(reshape2)
 #######Reading files here##############
-fc<-read.csv(here("..","..","data_files", "flock_composition_data_cleaned.csv"))
+fc<-read.csv(here("..","..","data_files","Extra", "flock_composition_data_cleaned.csv"))
 
 # has all the species and their mean traits values with SD 
 mean_com <-read.csv(here("..","..","data_files","ready_data", "avonet_mean_combined.csv"))
